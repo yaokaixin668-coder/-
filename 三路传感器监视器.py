@@ -3,6 +3,8 @@ import struct
 import time
 import json
 import sys
+import subprocess
+from importlib import invalidate_caches
 
 
 
@@ -257,8 +259,23 @@ def main():
     else:
         try:
             import serial
-        except ImportError:
-            print("请在当前 Python 解释器中安装 pyserial。", file=sys.stderr)
+        except ModuleNotFoundError as error:
+            if error.name != "serial":
+                raise
+            print("缺少 pyserial，正在安装到当前 Python 环境…", file=sys.stderr, flush=True)
+            try:
+                subprocess.run(
+                    [sys.executable, "-m", "pip", "install", "pyserial==3.5"],
+                    stdout=sys.stderr,
+                    check=True,
+                )
+                invalidate_caches()
+                import serial
+            except (OSError, subprocess.CalledProcessError, ImportError) as install_error:
+                print(f"安装或加载 pyserial 失败：{install_error}", file=sys.stderr)
+                return 1
+        if not hasattr(serial, "Serial"):
+            print("当前加载的 serial 模块没有 Serial 接口，请检查是否安装了 pyserial，或目录里是否有同名 serial.py。", file=sys.stderr)
             return 1
         settings = [(LEIDA_PORT, 115200), (RTK_PORT, RTK_BAUD), (IMU_PORT, 921600)]
         ports = [port.casefold() for port, _ in settings if port]
